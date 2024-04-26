@@ -1,5 +1,5 @@
 import numpy as np
-
+hidden_layer_neurons = 24
 def sigmoid(x):
     return 1. / (1. + np.exp(-x))
 
@@ -18,11 +18,11 @@ def softmax(x):
 
 def initialize_parameters():
     weights = [
-        np.random.randn(img_size * img_size, 16) * np.sqrt(2. / (img_size * img_size)),
-        np.random.randn(16, 16) * np.sqrt(2. / 16),
-        np.random.randn(16, 10) * np.sqrt(2. / 16)
+        np.random.randn(img_size * img_size, hidden_layer_neurons) * np.sqrt(2. / (img_size * img_size)),
+        np.random.randn(hidden_layer_neurons, hidden_layer_neurons) * np.sqrt(2. / hidden_layer_neurons),
+        np.random.randn(hidden_layer_neurons, 10) * np.sqrt(2. / hidden_layer_neurons)
     ]
-    biases = [np.zeros((1, 16)), np.zeros((1, 16)), np.zeros((1, 10))]
+    biases = [np.zeros((1, hidden_layer_neurons)), np.zeros((1, hidden_layer_neurons)), np.zeros((1, 10))]
     return weights, biases
 
 
@@ -107,23 +107,51 @@ def save_model(weights, biases):
     np.savez('model.npz', w0=weights[0], w1=weights[1], w2=weights[2], b0=biases[0], b1=biases[1], b2=biases[2])
 
 
+import matplotlib.pyplot as plt
+
+
+def plot_training(history):
+    loss, accuracy = history['loss'], history['accuracy']
+
+    epochs = range(1, len(loss) + 1)
+
+    plt.figure(figsize=(12, 5))
+
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, loss, 'bo-', label='Training loss')
+    plt.title('Training Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, accuracy, 'ro-', label='Training accuracy')
+    plt.title('Training Accuracy')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
 def main():
     batch_size = 100
     epochs = 100
-    total = 60000
+    total = 10000
 
     learning_rate = 0.01
     tolerance = 0.0001
+    threshold = 0.94
     losses = []
     accuracies = []
     accuracy = 0.
     weights, biases = initialize_parameters()
     for epoch in range(epochs):
         index = 0
-        if accuracy > 0.98:
-            print(f"Done!:accuracy:{accuracy}\nepochs:{epoch}")
-            save_model(weights, biases)
-            break
+        epoch_losses = []
+        epoch_accuracies = []
+        # learning_rate /= 2
         while index < total:
             if index + batch_size > total:
                 index = 0
@@ -134,8 +162,8 @@ def main():
 
             accuracy = compute_accuracy(weights, biases)
 
-            if accuracy > 0.98:
-                break
+            epoch_losses.append(loss)
+            epoch_accuracies.append(accuracy)
 
             if index % 1000 == 0:
                 print(f"Epoch {epoch + 1}, Batch {index // batch_size}, Loss: {loss:.4f}, Accuracy: {accuracy:.4%}")
@@ -143,12 +171,25 @@ def main():
             weights, biases = update_parameters(learning_rate, grads_w, grads_b, weights, biases)
 
             index += batch_size
+        avg_accuracy = np.mean(epoch_accuracies)
+        avg_losses = np.mean(epoch_losses)
+        losses.append(avg_losses)
+        accuracies.append(avg_accuracy)
+
+
+        if avg_accuracy > threshold:
+            print(f"Done!:accuracy:{accuracy}\nepochs:{epoch}")
+            save_model(weights, biases)
+            break
 
     print("Training finished")
     print("Test.")
 
     accuracy = compute_accuracy(weights, biases, batch_size=10000)
     print(f"General accuracy: {accuracy:.4%}\n")
+
+    history = {'loss': losses, 'accuracy': accuracies}
+    plot_training(history)
 
 if __name__ == '__main__':
     main()

@@ -1,55 +1,63 @@
 import numpy as np
 
 def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
+    return 1. / (1. + np.exp(-x))
 
 def d_sigmoid(x):
-    return sigmoid(x) * (1 - sigmoid(x))
+    return sigmoid(x) * (1. - sigmoid(x))
+
+def relu(x):
+    return np.maximum(0, x)
+
+def d_relu(x):
+    return np.where(x > 0, 1, 0)
+
+def softmax(x):
+    exps = np.exp(x - np.max(x, axis=1, keepdims=True))
+    return exps / np.sum(exps, axis=1, keepdims=True)
 
 def initialize_parameters():
     weights = [
-        np.random.randn(img_size * img_size, 16) * np.sqrt(1. / (img_size * img_size)),
-        np.random.randn(16, 16) * np.sqrt(1. / 16),
-        np.random.randn(16, 10) * np.sqrt(1. / 16)
+        np.random.randn(img_size * img_size, 16) * np.sqrt(2. / (img_size * img_size)),
+        np.random.randn(16, 16) * np.sqrt(2. / 16),
+        np.random.randn(16, 10) * np.sqrt(2. / 16)
     ]
     biases = [np.zeros((1, 16)), np.zeros((1, 16)), np.zeros((1, 10))]
     return weights, biases
 
 
 def forward_propagation(X, weights, biases):
-    z = [np.zeros((100, 16)), np.zeros((100, 16)), np.zeros((100, 10))]
-    z[0] = np.dot(X, weights[0]) + biases[0]
-    layer1 = sigmoid(z[0])
-    z[1] = np.dot(layer1, weights[1]) + biases[1]
-    layer2 = sigmoid(z[1])
-    z[2] = np.dot(layer2, weights[2]) + biases[2]
-    layer3 = sigmoid(z[2])
+    z1 = np.dot(X, weights[0]) + biases[0]
+    a1 = relu(z1)
+    z2 = np.dot(a1, weights[1]) + biases[1]
+    a2 = relu(z2)
+    z3 = np.dot(a2, weights[2]) + biases[2]
+    a3 = softmax(z3)
 
-    return layer1, layer2, layer3, z
-def compute_loss(layer3, y):
+    return a1, a2, a3, z1, z2, z3
+def compute_loss(a3, y):
     m = y.shape[0]
-    return np.sum((y - layer3) ** 2) / m
+    return np.sum((y - a3) ** 2) / m
 
-def backward_propagation(X, layer1, layer2, layer3, y, weights, z):
-    layer3_error = y - layer3
-    layer3_delta = layer3_error * d_sigmoid(z[2])
+def backward_propagation(X, a1, a2, a3, y, weights, z1, z2, z3):
+    m = y.shape[0]
+    # a3_delta = (y - a3) * d_relu(z3)
+    a3_delta = a3 - y
 
-    layer2_error = np.dot(layer3_delta, weights[2].T)
-    layer2_delta = layer2_error * d_sigmoid(z[1])
+    a2_delta = np.dot(a3_delta, weights[2].T) * d_relu(z2)
 
-    layer1_error = np.dot(layer2_delta, weights[1].T)
-    layer1_delta = layer1_error * d_sigmoid(z[0])
+    a1_delta = np.dot(a2_delta, weights[1].T) * d_relu(z1)
 
     grads_w = [
-        np.dot(X.T, layer1_delta),  # Correct: transpose X, not layer1_delta
-        np.dot(layer1.T, layer2_delta),  # Correct: transpose layer1, not layer2_delta
-        np.dot(layer2.T, layer3_delta)  # Correct: transpose layer2, not layer3_delta
+        np.dot(X.T, a1_delta) / m,
+        np.dot(a1.T, a2_delta) / m,
+        np.dot(a2.T, a3_delta) / m
     ]
 
     grads_b = [
-        np.sum(layer1_delta, axis=0, keepdims=True),
-        np.sum(layer2_delta, axis=0, keepdims=True),
-        np.sum(layer3_delta, axis=0, keepdims=True)
+        np.sum(a1_delta, axis=0, keepdims=True) / m,
+        np.sum(a2_delta, axis=0, keepdims=True) / m,
+        np.sum(a3_delta, axis=0, keepdims=True) / m
     ]
 
     return grads_w, grads_b
@@ -80,26 +88,19 @@ def load_data(index, batch_size):
 
 img_size = 28
 
-
-import numpy as np
-
 def compute_accuracy(weights, biases, img_size=28, batch_size=100):
     data = np.load('mnist.npz')
-    X_test = data['x_test'][:batch_size]  # Load only batch_size number of images
-    y_test = data['y_test'][:batch_size]  # Load corresponding labels
+    X_test = data['x_test'][:batch_size]
+    y_test = data['y_test'][:batch_size]
 
-    # Reshape and normalize the test images
     X_test = X_test.reshape(batch_size, img_size * img_size) / 255.0
 
-    # Convert labels to one-hot vectors
     y = np.zeros((batch_size, 10))
     y[np.arange(batch_size), y_test] = 1
 
-    # Perform forward propagation on the test data
-    _, _, layer3, _ = forward_propagation(X_test, weights, biases)
+    _, _, a3, _, _, _ = forward_propagation(X_test, weights, biases)
 
-    # Compute accuracy
-    accuracy = np.sum(np.argmax(layer3, axis=1) == np.argmax(y, axis=1)) / batch_size
+    accuracy = np.sum(np.argmax(a3, axis=1) == np.argmax(y, axis=1)) / batch_size
     return accuracy
 
 
@@ -109,47 +110,38 @@ def compute_accuracy(weights, biases, img_size=28, batch_size=100):
 
 def main():
     batch_size = 100
-    epoch = 100
+    epochs = 100
+    total = 60000
 
-    learning_rate = 0.001
+    learning_rate = 0.1
     tolerance = 0.0001
     losses = []
     accuracies = []
-    index = 0
 
     weights, biases = initialize_parameters()
-    for i in range(epoch):
-        print("Epoch: ", i)
+    for epoch in range(epochs):
+        index = 0
+        while index < total:
+            if index + batch_size > total:
+                index = 0
+            X, y = load_data(index, batch_size)
 
-        index += batch_size
-        X, y = load_data(index, batch_size)
+            a1, a2, a3, z1, z2, z3 = forward_propagation(X, weights, biases)
+            loss = compute_loss(a3, y)
 
-        layer1, layer2, layer3, z = forward_propagation(X, weights, biases)
-        loss = compute_loss(layer3, y)
+            accuracy = compute_accuracy(weights, biases)
 
-        accuracy = compute_accuracy(weights, biases)
-        accuracies.append(accuracy)
-        print("Accuracy: ", accuracy)
+            if accuracy > 0.975:
+                print(f"Done!:accuracy:{accuracy}\nepochs:{epoch}")
+                return
 
-        # if i > 0 and abs(accuracies[i] - accuracies[i - 1] ) < tolerance:
-        #     print("Accuracy converged")
-        #     break
+            if index % 1000 == 0:
+                print(f"Epoch {epoch + 1}, Batch {index // batch_size}, Loss: {loss:.4f}, Accuracy: {accuracy:.4%}")
+            grads_w, grads_b = backward_propagation(X, a1, a2, a3, y, weights, z1, z2, z3)
+            weights, biases = update_parameters(learning_rate, grads_w, grads_b, weights, biases)
 
+            index += batch_size
 
-        losses.append(loss)
-        print( "Loss: ", loss)
-        grads_w, grads_b = backward_propagation(X, layer1, layer2, layer3, y, weights, z)
-        # print("Grads_w: ", grads_w)
-        # print("Grads_b: ", grads_b)
-        weights, biases = update_parameters(learning_rate, grads_w, grads_b, weights, biases)
-
-
-
-        # if i > 0 and abs(losses[i] - losses[i - 1]) < tolerance:
-        #     print("Loss converged")
-        #     break
-
-    
     print("Training finished")
     
 

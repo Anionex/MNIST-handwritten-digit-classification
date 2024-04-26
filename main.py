@@ -103,9 +103,8 @@ def compute_accuracy(weights, biases, img_size=28, batch_size=100):
     accuracy = np.sum(np.argmax(a3, axis=1) == np.argmax(y, axis=1)) / batch_size
     return accuracy
 
-
-
-
+def save_model(weights, biases):
+    np.savez('model.npz', w0=weights[0], w1=weights[1], w2=weights[2], b0=biases[0], b1=biases[1], b2=biases[2])
 
 
 def main():
@@ -113,14 +112,18 @@ def main():
     epochs = 100
     total = 60000
 
-    learning_rate = 0.1
+    learning_rate = 0.01
     tolerance = 0.0001
     losses = []
     accuracies = []
-
+    accuracy = 0.
     weights, biases = initialize_parameters()
     for epoch in range(epochs):
         index = 0
+        if accuracy > 0.98:
+            print(f"Done!:accuracy:{accuracy}\nepochs:{epoch}")
+            save_model(weights, biases)
+            break
         while index < total:
             if index + batch_size > total:
                 index = 0
@@ -131,9 +134,8 @@ def main():
 
             accuracy = compute_accuracy(weights, biases)
 
-            if accuracy > 0.975:
-                print(f"Done!:accuracy:{accuracy}\nepochs:{epoch}")
-                return
+            if accuracy > 0.98:
+                break
 
             if index % 1000 == 0:
                 print(f"Epoch {epoch + 1}, Batch {index // batch_size}, Loss: {loss:.4f}, Accuracy: {accuracy:.4%}")
@@ -143,7 +145,10 @@ def main():
             index += batch_size
 
     print("Training finished")
-    
+    print("Test.")
+
+    accuracy = compute_accuracy(weights, biases, batch_size=10000)
+    print(f"General accuracy: {accuracy:.4%}\n")
 
 if __name__ == '__main__':
     main()

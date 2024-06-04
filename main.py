@@ -39,10 +39,11 @@ def compute_loss(a3, y):
     m = y.shape[0]
     return np.sum((y - a3) ** 2) / m
 
-def backward_propagation(X, a1, a2, a3, y, weights, z1, z2, z3):
+def backward_propagation(X, a1, a2, a3, y, weights, z1, z2, z3): 
+    # y是one-hot标签
     m = y.shape[0]
     # a3_delta = (y - a3) * d_relu(z3)
-    a3_delta = a3 - y
+    a3_delta = a3 - y  #省略常数2， 因为不影响梯度的方向
 
     a2_delta = np.dot(a3_delta, weights[2].T) * d_relu(z2)
 
@@ -139,13 +140,14 @@ def main():
     batch_size = 100
     epochs = 100
     total = 10000
-
+    # define hyperparams
     learning_rate = 0.01
     tolerance = 0.0001
     threshold = 0.94
     losses = []
     accuracies = []
     accuracy = 0.
+    # 初始化参数，用了一种方法叫Xavier/zeɪviər/初始化，适用于激活函数为 sigmoid 或 tanh 的神经网络层。
     weights, biases = initialize_parameters()
     for epoch in range(epochs):
         index = 0
@@ -156,7 +158,7 @@ def main():
             if index + batch_size > total:
                 index = 0
             X, y = load_data(index, batch_size)
-
+            # z是线性组合（加权和和bias的和）
             a1, a2, a3, z1, z2, z3 = forward_propagation(X, weights, biases)
             loss = compute_loss(a3, y)
 
